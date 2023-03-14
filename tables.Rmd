@@ -1,0 +1,521 @@
+---
+title: "tables"
+author: "Turkuler"
+date: '`r Sys.Date()`'
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(broom)
+library(knitr)
+library(patchwork)
+```
+
+```{r}
+source(here("scripts", "01_process_data.R"))
+source(here("scripts", "01b_process_data.R"))
+source(here("scripts", "02_antibodydata.R"))
+source(here("scripts", "functions.R"))
+```
+
+```{r}
+df_use <- df_all %>% 
+  select(record_id, any_symp_t2_inclCh, unge_alder_t0, unge_kjonn_t0, unge_vaksine_t2_eff, reinfeksjon_t2, any_symp_t0, vaccine_after_delta, unge_vaksine_t0_eff, vaccine_after_delta_before_omicron, sliten_t2_d, cogn_symp_t2, age_group, resp_symp_t2, neuro_symp_t2, smell_taste_t2, hodepine_t0, tungpust_t2, general_symp_t0, resp_symp_t0, smell_taste_t0, tungpust_t1, cogn_symp_t1, neuro_symp_t1, sliten_t1_d, sliten_t1, slapphet_t0, tungpust_t0, ingen_symp_t0, ingen_symp_t2_inclCh, resp_symp_t1, any_symp_t1_inclCh, ingen_symp_t1_inclCh, unge_alder_t1) %>% 
+  left_join(df) %>% 
+  mutate(across(c(Wuhan_t1, Delta_t1, Wuhan_t2, Delta_t2), ~ log10(.x)),
+         age_group2 = #if_else(age_group == "10-15", 0, 1)
+           if_else(unge_alder_t0 < 17, 0, 1)) %>% 
+  rename(any_symp_t2 = any_symp_t2_inclCh, 
+         ingen_symp_t2 = ingen_symp_t2_inclCh,
+         any_symp_t1 = any_symp_t1_inclCh, 
+         ingen_symp_t1 = ingen_symp_t1_inclCh,
+         sliten_t2 = sliten_t2_d)
+#write_delim(df_all %>%  left_join(df), here("data_processed", "df_all_2023-02-24.txt"))
+```
+
+```{r}
+df_table_use <- df_use %>% 
+  filter(!is.na(resp_symp_t1)) %>% 
+  mutate(unge_kjonn_t0 = unge_kjonn_t0 - 1)
+df_table <- c("Any persisting symptoms", "", "", "")
+```
+
+```{r}
+outcome <- "any_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",  "any_symp_t0",  "Wuhan_t1", "unge_vaksine_t0_eff")
+names <- c("Female sex", "Age (cat.)",  "Any symptoms baseline", "Antibodies (IgG) Wuhan", "Vaccination baseline")
+```
+
+```{r rows}
+for (i in 1:length(covariates)){
+df_table <- rbind.data.frame(df_table,
+  c(names[i], 
+    returnn(covariates[i], df_table_use),
+    regressionLogistic(outcome, covariates[i], df_table_use, covariates[i]),
+    regressionLogistic(outcome, covariates, df_table_use, covariates[i])))
+}
+```
+
+```{r}
+outcome <- "any_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",  "ingen_symp_t0",  "Wuhan_t1", "unge_vaksine_t0_eff")
+names <- c("Female sex", "Age (cat.)",  "No symptoms baseline", "Antibodies (IgG) Wuhan", "Vaccination baseline")
+df_table <- rbind.data.frame(df_table,
+                             c("", "", "", ""))
+<<rows>>
+df_table <- df_table %>% 
+  slice(1:4, 10, 5:6)
+
+outcome <- "tungpust_t1"
+covariates <- c("unge_kjonn_t0", "age_group2", "tungpust_t0",  "Wuhan_t1", "unge_vaksine_t0_eff")
+names <- c("Female sex", "Age (cat.)",  "Dyspnea baseline", "Antibodies (IgG) Wuhan", "Vaccination baseline")
+df_table <- rbind.data.frame(df_table,
+                             c("Dyspnea (yes/no)", "", "", ""))
+<<rows>>
+
+outcome <- "cogn_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",   "hodepine_t0",  "Wuhan_t1", "unge_vaksine_t0_eff")
+names <- c("Female sex", "Age (cat.)",  "Headache baseline", "Antibodies (IgG) Wuhan", "Vaccination baseline")
+df_table <- rbind.data.frame(df_table,
+                             c("Cognitive symptoms", "", "", ""))
+<<rows>>
+
+outcome <- "sliten_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",   "slapphet_t0",  "Wuhan_t1", "unge_vaksine_t0_eff")
+names <- c("Female sex", "Age (cat.)",  "Fatigue baseline", "Antibodies (IgG) Wuhan", "Vaccination baseline")
+df_table <- rbind.data.frame(df_table,
+                             c("Fatigue", "", "", ""))
+<<rows>>
+```
+
+```{r}
+colnames(df_table) <- c("-", "- N", "Estimate (CI) P - Unadjusted", "Estimate (CI) P - Adjusted")
+```
+
+```{r}
+kable(df_table, caption = "Table 1 - Factors associated with **persisting symptoms 2-4 months** post delta infection")
+```
+
+\pagebreak
+
+```{r}
+df_table_use <- df_use %>% 
+  filter(!is.na(any_symp_t1)) %>% 
+  mutate(unge_kjonn_t0 = unge_kjonn_t0 - 1)
+df_table <- c("Any persisting symptoms", "", "", "")
+```
+
+```{r}
+outcome <- "any_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2", "any_symp_t0")
+names <- c("Female sex", "Age (cat.)", "Any symptoms at baseline")
+<<rows>>
+outcome <- "any_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",  "ingen_symp_t0")
+names <- c("Female sex", "Age (cat.)", "No symptoms at baseline")
+df_table <- rbind.data.frame(df_table,
+                              c("", "", "", ""))
+
+<<rows>>
+df_table <- rbind.data.frame(df_table,
+                              c("Reinfection", "-", "-", "-"))
+df_table <- df_table %>% 
+  slice(1:4, 8, 9)
+
+outcome <- "tungpust_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",  "tungpust_t0")
+names <- c("Female sex", "Age (cat.)",  "Dyspnea baseline")
+df_table <- rbind.data.frame(df_table,
+                              c("Dyspnea (yes/no)", "", "", ""))
+<<rows>>
+df_table <- rbind.data.frame(df_table,
+                              c("Reinfection", "-", "-", "-"))
+outcome <- "cogn_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2",  "hodepine_t0")
+names <- c("Female sex", "Age (cat.)",  "Headache baseline")
+df_table <- rbind.data.frame(df_table,
+                              c("Cognitive symptoms", "", "", ""))
+<<rows>>
+df_table <- rbind.data.frame(df_table,
+                              c("Reinfection", "-", "-", "-"))
+outcome <- "neuro_symp_t1"
+covariates <- c("unge_kjonn_t0", "age_group2", "hodepine_t0")
+names <- c("Female sex", "Age (cat.)", "Headache baseline")
+df_table <- rbind.data.frame(df_table,
+                              c("Neurological symptoms", "", "", ""))
+<<rows>>
+df_table <- rbind.data.frame(df_table,
+                              c("Reinfection", "-", "-", "-"))
+outcome <- "sliten_t1"
+covariates <- c("unge_kjonn_t0", "age_group2", "slapphet_t0")
+names <- c("Female sex", "Age (cat.)", "Fatigue baseline")
+df_table <- rbind.data.frame(df_table,
+                              c("Fatigue", "", "", ""))
+<<rows>>
+df_table <- rbind.data.frame(df_table,
+                              c("Reinfection", "-", "-", "-"))
+df_table2 <- df_table
+```
+
+```{r}
+df_table_use <- df_use %>% 
+  filter(!is.na(any_symp_t2)) %>% 
+  mutate(unge_kjonn_t0 = unge_kjonn_t0 - 1)
+df_table <- c("Any persisting symptoms", "", "", "")
+```
+
+```{r}
+outcome <- "any_symp_t2"
+covariates <- c("unge_kjonn_t0", "age_group2",  "any_symp_t0", "reinfeksjon_t2")
+names <- c("Female sex", "Age (cat.)", "Any symptoms at baseline", "Reinfection")
+<<rows>>
+outcome <- "any_symp_t2"
+covariates <- c("unge_kjonn_t0", "age_group2",  "ingen_symp_t0", "reinfeksjon_t2")
+names <- c("Female sex", "Age (cat.)", "No symptoms at baseline", "Reinfection")
+df_table <- rbind.data.frame(df_table,
+                              c("", "", "", ""))
+
+<<rows>>
+df_table <- df_table %>% 
+  slice(1:4,9,5)
+
+outcome <- "tungpust_t2"
+covariates <- c("unge_kjonn_t0", "age_group2",  "tungpust_t0", "reinfeksjon_t2")
+names <- c("Female sex", "Age (cat.)", "Dyspnea baseline", "Reinfection")
+df_table <- rbind.data.frame(df_table,
+                              c("Dyspnea (yes/no)", "", "", ""))
+<<rows>>
+outcome <- "cogn_symp_t2"
+covariates <- c("unge_kjonn_t0", "age_group2",  "hodepine_t0", "reinfeksjon_t2")
+names <- c("Female sex", "Age (cat.)", "Headache baseline", "Reinfection")
+df_table <- rbind.data.frame(df_table,
+                              c("Cognitive symptoms", "", "", ""))
+<<rows>>
+outcome <- "neuro_symp_t2"
+covariates <- c("unge_kjonn_t0", "age_group2",  "hodepine_t0", "reinfeksjon_t2")
+names <- c("Female sex", "Age (cat.)", "Headache baseline", "Reinfection")
+df_table <- rbind.data.frame(df_table,
+                              c("Neurological symptoms", "", "", ""))
+<<rows>>
+outcome <- "sliten_t2"
+covariates <- c("unge_kjonn_t0", "age_group2",  "slapphet_t0", "reinfeksjon_t2")
+names <- c("Female sex", "Age (cat.)", "Fatigue baseline", "Reinfection")
+df_table <- rbind.data.frame(df_table,
+                              c("Fatigue", "", "", ""))
+<<rows>>
+```
+
+```{r}
+df_table <- cbind.data.frame(df_table2, df_table %>% select(2:4))
+```
+
+
+```{r}
+colnames(df_table) <- c("Any persisting symptoms", "2-4m - N", "2-4m - Estimate (CI) P - Unadjusted", "2-4m - Estimate (CI) P - Adjusted", "6-8m - N", "6-8m - Estimate (CI) P - Unadjusted", "6-8m - Estimate (CI) P - Adjusted")
+```
+
+```{r}
+kable(df_table, caption = "Table 2 - Factors associated with **persisting symptoms 2-4 months and 6-8 months** post delta infection")
+```
+
+\pagebreak
+
+```{r}
+df_table_use <- df_use %>% 
+  filter(!is.na(any_symp_t2), unge_alder_t0 >= 17) %>% 
+  mutate(unge_kjonn_t0 = unge_kjonn_t0 - 1)
+df_table <- c("Any persisting symptoms", "", "", "")
+```
+
+```{r}
+outcome <- "any_symp_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0", "reinfeksjon_t2",  "any_symp_t0", "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)", "Reinfection", "Any symptoms at baseline", "Vaccination")
+<<rows>>
+outcome <- "any_symp_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0", "reinfeksjon_t2",  "ingen_symp_t0", "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)", "Reinfection", "No symptoms at baseline", "Vaccination")
+df_table <- rbind.data.frame(df_table,
+                              c("", "", "", ""))
+
+<<rows>>
+df_table <- df_table %>% 
+  slice(1:5, 11, 6)
+outcome <- "tungpust_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0", "reinfeksjon_t2",  "tungpust_t0", "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)", "Reinfection", "Dyspnea baseline", "Vaccination")
+df_table <- rbind.data.frame(df_table,
+                              c("Dyspnea (yes/no)", "", "", ""))
+<<rows>>
+outcome <- "cogn_symp_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0", "reinfeksjon_t2",  "hodepine_t0", "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)", "Reinfection", "Headache baseline", "Vaccination")
+df_table <- rbind.data.frame(df_table,
+                              c("Cognitive symptoms", "", "", ""))
+<<rows>>
+outcome <- "neuro_symp_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0", "reinfeksjon_t2",  "hodepine_t0", "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)", "Reinfection", "Headache baseline", "Vaccination")
+df_table <- rbind.data.frame(df_table,
+                              c("Neurological symptoms", "", "", ""))
+<<rows>>
+outcome <- "sliten_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0", "reinfeksjon_t2",  "slapphet_t0", "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)", "Reinfection", "Fatigue baseline", "Vaccination")
+df_table <- rbind.data.frame(df_table,
+                              c("Fatigue", "", "", ""))
+<<rows>>
+```
+
+```{r}
+colnames(df_table) <- c("Any persisting symptoms", "- N", "Estimate (CI) P - Unadjusted", "Estimate (CI) P - Adjusted")
+```
+
+```{r}
+kable(df_table, caption = "Table 3 - Factors associated with **persisting symptoms 6-8 months** post delta infection\nAge 16 and over")
+```
+
+
+
+\pagebreak
+
+```{r}
+df_table_use <- df_use
+```
+
+```{r}
+symp <- "any_symp"
+name <- "Any symptoms"
+```
+
+```{r sympPrep}
+symp1 <- paste0(symp, "_t0")
+symp2 <- paste0(symp, "_t1")
+symp3 <- paste0(symp, "_t2")
+```
+
+```{r excessriskrows}
+rows <- cbind.data.frame(name, 
+                             sympProp(symp1, df_table_use),
+                             sympProp(symp2, df_table_use),
+                             sympProp(symp3, df_table_use %>% filter(reinfeksjon_t2 == 0)))
+```
+
+```{r excessriskcalc1}
+prop1 <- symp2
+prop2 <- symp1
+```
+
+```{r excessriskcalc2}
+propDiff <- as.numeric(str_split(sympProp(prop1, df_table_use), " ")[[1]][2] %>% str_replace("%", "") %>% str_replace("\\(", "") %>% str_replace("\\)", "")) -
+                                      as.numeric(str_split(sympProp(prop2, df_use), " ")[[1]][2] %>% str_replace("%", "") %>% str_replace("\\(", "") %>% str_replace("\\)", ""))
+propTest <- prop.test(c(as.numeric(str_split(sympProp(prop1, df_table_use), " ")[[1]][1]), as.numeric(str_split(sympProp(prop2, df_use), " ")[[1]][1])),
+                      c(returnn(prop1, df_table_use), returnn(prop2, df_use)))
+tmp <-  paste0(propDiff, "%", " (", round(propTest$conf.int[1]*100, 0), "-", round(propTest$conf.int[2]*100, 0), ") ", round(propTest$p.value, 3))
+```
+
+```{r excessriskcols}
+rows <- rows %>% mutate(diff1 = tmp, .after=3)
+prop1 <- symp3
+prop2 <- symp1
+df_table_use <- df_use %>% filter(reinfeksjon_t2 == 0)
+<<excessriskcalc2>>
+rows <- rows %>% mutate(diff2 = tmp, .after=5)
+prop1 <- symp3
+prop2 <- symp2
+<<excessriskcalc2>>
+rows <- rows %>% mutate(diff3 = tmp, .after=6)
+df_table_use <- df_use
+```
+
+```{r rest}
+df_table <- rows
+symp <- "tungpust"
+name <- "Dyspnea"
+<<sympPrep>>
+<<excessriskrows>>
+<<excessriskcalc1>>
+<<excessriskcalc2>>
+<<excessriskcols>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "resp_symp"
+name <- "Respiratory symptoms"
+<<sympPrep>>
+<<excessriskrows>>
+<<excessriskcalc1>>
+<<excessriskcalc2>>
+<<excessriskcols>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "cogn_symp"
+name <- "Cognitive symptoms"
+<<sympPrep>>
+symp1 <- "hodepine_t0"
+<<excessriskrows>>
+<<excessriskcalc1>>
+<<excessriskcalc2>>
+<<excessriskcols>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "neuro_symp"
+name <- "Neurological symptoms"
+<<sympPrep>>
+symp1 <- "hodepine_t0"
+<<excessriskrows>>
+<<excessriskcalc1>>
+<<excessriskcalc2>>
+<<excessriskcols>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "sliten"
+name <- "Fatigue"
+<<sympPrep>>
+symp1 <- "slapphet_t0"
+<<excessriskrows>>
+<<excessriskcalc1>>
+<<excessriskcalc2>>
+<<excessriskcols>>
+df_table <- rbind.data.frame(df_table, rows)
+```
+
+```{r}
+colnames(df_table) <- c("", "baseline", "2-4m", "Crude risk difference 2-4m - baseline", "6-8m", "Crude risk difference 6-8m - baseline", "Crude risk difference 6-8m - 2-4m")
+```
+
+```{r}
+kable(df_table, caption = "Table 5 - Crude risk estimates - comparison of all group between time points")
+```
+
+\pagebreak
+
+```{r}
+symp <- "any_symp"
+name <- "Any symptoms"
+<<sympPrep>>
+```
+
+```{r excessriskrows2}
+rows <- cbind.data.frame(col1 = name, 
+                             col2 = sympProp(symp1, df_table_use %>% filter(unge_alder_t0 < 17)), 
+                         col3 = sympProp(symp1, df_table_use %>% filter(unge_alder_t0 >= 17)),
+                             col4 = sympProp(symp2, df_table_use %>% filter(unge_alder_t0 < 17)), 
+                         col5 = sympProp(symp2, df_table_use %>% filter(unge_alder_t0 >= 17)),
+                             col6 = sympProp(symp3, df_table_use %>% filter(unge_alder_t0 < 17, reinfeksjon_t2 == 0)), 
+                         col7 = sympProp(symp3, df_table_use %>% filter(unge_alder_t0 >= 17, reinfeksjon_t2 == 0)))
+```
+
+```{r}
+prop1 <- symp1
+```
+
+```{r excessriskcalc2_2}
+propDiff <- as.numeric(str_split(sympProp(prop1, df_table_use %>% filter(unge_alder_t0 >= 17)), " ")[[1]][2] %>% str_replace("%", "") %>% str_replace("\\(", "") %>% str_replace("\\)", "")) -
+                                      as.numeric(str_split(sympProp(prop1, df_table_use %>% filter(unge_alder_t0 < 17)), " ")[[1]][2] %>% str_replace("%", "") %>% str_replace("\\(", "") %>% str_replace("\\)", ""))
+propTest <- prop.test(c(as.numeric(str_split(sympProp(prop1, df_table_use %>% filter(unge_alder_t0 >= 17)), " ")[[1]][1]), as.numeric(str_split(sympProp(prop1, df_table_use %>% filter(unge_alder_t0 < 17)), " ")[[1]][1])),
+                      c(returnn(prop1, df_table_use %>% filter(unge_alder_t0 >= 17)), returnn(prop1, df_table_use %>% filter(unge_alder_t0 < 17))))
+tmp <-  paste0(propDiff, "%", " (", round(propTest$conf.int[1]*100, 0), "-", round(propTest$conf.int[2]*100, 0), ") ", round(propTest$p.value, 3))
+```
+
+```{r excessriskcols2}
+rows <- rows %>% mutate(diff1 = tmp, .after=3)
+prop1 <- symp2
+<<excessriskcalc2_2>>
+rows <- rows %>% mutate(diff2 = tmp, .after=6)
+prop1 <- symp3
+df_table_use <- df_use %>% filter(reinfeksjon_t2 == 0)
+<<excessriskcalc2_2>>
+rows <- rows %>% mutate(diff3 = tmp, .after=10)
+df_table_use <- df_use
+```
+
+```{r}
+df_table <- rbind.data.frame(cbind.data.frame(col1 = "N", col2 = returnn(symp1, df_table_use %>% filter(unge_alder_t0 < 17)), 
+                         col3 = returnn(symp1, df_table_use %>% filter(unge_alder_t0 >= 17)), diff1 = "",
+                             col4 = returnn(symp2, df_table_use %>% filter(unge_alder_t0 < 17)), 
+                         col5 = returnn(symp2, df_table_use %>% filter(unge_alder_t0 >= 17)), diff2 = "",
+                             col6 = returnn(symp3, df_table_use %>% filter(unge_alder_t0 < 17, reinfeksjon_t2 == 0)), 
+                         col7 = returnn(symp3, df_table_use %>% filter(unge_alder_t0 >= 17, reinfeksjon_t2 == 0)), diff3 = ""), rows)
+symp <- "tungpust"
+name <- "Dyspnea"
+<<sympPrep>>
+<<excessriskrows2>>
+prop1 <- symp1
+<<excessriskcalc2_2>>
+<<excessriskcols2>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "resp_symp"
+name <- "Respiratory symptoms"
+<<sympPrep>>
+<<excessriskrows2>>
+prop1 <- symp1
+<<excessriskcalc2_2>>
+<<excessriskcols2>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "cogn_symp"
+name <- "Cognitive symptoms"
+<<sympPrep>>
+symp1 <- "hodepine_t0"
+<<excessriskrows2>>
+prop1 <- symp1
+<<excessriskcalc2_2>>
+<<excessriskcols2>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "neuro_symp"
+name <- "Neurological symptoms"
+<<sympPrep>>
+symp1 <- "hodepine_t0"
+<<excessriskrows2>>
+prop1 <- symp1
+<<excessriskcalc2_2>>
+<<excessriskcols2>>
+df_table <- rbind.data.frame(df_table, rows)
+symp <- "sliten"
+name <- "Fatigue"
+<<sympPrep>>
+symp1 <- "slapphet_t0"
+<<excessriskrows2>>
+prop1 <- symp1
+<<excessriskcalc2_2>>
+<<excessriskcols2>>
+df_table <- rbind.data.frame(df_table, rows)
+```
+
+
+```{r}
+colnames(df_table) <- c("", "baseline - under 17", "baseline - 17 and over", "Crude risk difference - baseline", "2-4m - under 17", "2-4m - 17 and over", "Crude risk difference - 2-4m", "6-8m - under 17", "6-8m - 17 and over", "Crude risk difference - 6-8m")
+```
+
+```{r}
+kable(df_table, caption = "Table 6 - Crude risk estimates - comparison of age groups at different time points")
+```
+
+
+\pagebreak
+
+```{r}
+outcome <- "reinfeksjon_t2"
+covariates <- c("unge_kjonn_t0", "unge_alder_t0",  "Wuhan_t1")
+names <- c("Female sex", "Age (cont.)",  "Antibodies (IgG) Wuhan")
+df_table <- c("Reinfection", "", "", "")
+<<rows>>
+```
+
+```{r}
+covariates <- c("unge_kjonn_t0", "unge_alder_t0",  "unge_vaksine_t2_eff")
+names <- c("Female sex", "Age (cont.)",  "Vaccination")
+df_table <- rbind.data.frame(df_table,
+                             c("", "", "", ""))
+<<rows>>
+```
+
+```{r}
+colnames(df_table) <- c("-", "- N", "Estimate (CI) P - Unadjusted", "Estimate (CI) P - Adjusted")
+```
+
+```{r}
+kable(df_table, caption = "Table 7 - Factors associated with **reinfection** post delta infection")
+```
+
